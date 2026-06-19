@@ -205,7 +205,7 @@
   <header>
     <div class="eyebrow">Faceless food reels · powered by Grok Imagine</div>
     <h1>Reel <em>Kitchen</em></h1>
-    <p class="sub">Drop a recipe photo, pick your kitchen and your cook, and get four stitch-ready 10-second scene prompts built to hold viewers to the very last bite.</p>
+    <p class="sub">Drop a recipe photo, pick your kitchen, your cook, and your reel length, and get stitch-ready Grok Imagine scene prompts built to hold viewers to the very last bite.</p>
   </header>
 
   <div class="grid">
@@ -232,7 +232,12 @@
         <div class="seg" id="cook"></div>
       </div>
 
-      <button class="go" id="go" disabled>Generate 4 scene prompts</button>
+      <div class="seg-group">
+        <label class="label">Reel length</label>
+        <div class="seg" id="format"></div>
+      </div>
+
+      <button class="go" id="go" disabled>Generate scene prompts</button>
       <div id="err"></div>
     </div>
 
@@ -241,16 +246,13 @@
       <div class="out-empty">
         <div>
           <div class="oe-title">Your scenes will plate up here</div>
-          <div class="oe-sub">Four 10-second prompts, an overlay script, a caption, and a recipe first-comment — ready to paste into Grok.</div>
+          <div class="oe-sub">Scene prompts, an overlay script, a caption, and a recipe first-comment — ready to paste into Grok.</div>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="footnote">
-    Grok Imagine caps clips at 10 seconds — these four stitch into one ~40s reel.<br>
-    Keep the same kitchen + cook across all four for clean visual continuity.
-  </div>
+  <div class="footnote" id="footnote"></div>
 </div>
 
 <script>
@@ -268,9 +270,25 @@ const COOKS = [
   {id:'dog',   emo:'🐶', label:'Dog',   desc:'a cute dog "chef" in a tiny chef hat, endearing and expressive in frame, whimsical anthropomorphic cooking, still appetizing'},
   {id:'duck',  emo:'🦆', label:'Duck',  desc:'a charming duck "chef" in a tiny chef hat waddling in frame, comedic whimsical anthropomorphic cooking energy, scroll-stopping and cute'}
 ];
+const FORMATS = [
+  {id:'r40', emo:'🎬', label:'40s · 4×10s', clips:4, clipLen:10, total:40,
+    tags:['HOOK','TRANSFORM','MONEY SHOT','PAYOFF'],
+    arc:'1) hook / raw prep, 2) the cook/transform step, 3) the finishing money-shot (garnish/drizzle/plating), 4) the payoff (first bite or dip + slow pull-back reveal)',
+    note:'Grok Imagine caps clips at 10 seconds — these four stitch into one ~40s reel.'},
+  {id:'r15', emo:'⚡', label:'15s · 3×5s', clips:3, clipLen:5, total:15,
+    tags:['HOOK','TRANSFORM','PAYOFF'],
+    arc:'1) hook / raw prep, 2) the cook/transform money-shot (the key cooking and finishing action in one), 3) the payoff (first bite or dip + quick pull-back reveal)',
+    note:'Three punchy 5-second clips stitch into one fast ~15s reel.'},
+  {id:'r6', emo:'⏱️', label:'6s · single', clips:1, clipLen:6, total:6,
+    tags:['ALL-IN-ONE'],
+    arc:'a single continuous 6-second shot that packs a fast hook, the key cooking and finishing action, and an appetizing payoff into one seamless take',
+    note:'One self-contained 6-second clip — no stitching needed.'}
+];
+const NUMWORD={1:'ONE',2:'TWO',3:'THREE',4:'FOUR'};
 
 let imgData=null, imgMime=null;
-let kitchen='warm', cook='hands';
+let kitchen='warm', cook='hands', format='r40';
+let activeFmt=FORMATS[0];
 
 // build chips
 const kEl=document.getElementById('kitchen'), cEl=document.getElementById('cook');
@@ -284,8 +302,18 @@ function chips(host, items, current, onpick){
     host.appendChild(b);
   });
 }
+const fEl=document.getElementById('format');
 chips(kEl,KITCHENS,kitchen,id=>kitchen=id);
 chips(cEl,COOKS,cook,id=>cook=id);
+chips(fEl,FORMATS,format,id=>{format=id;syncFormatUI();});
+
+function syncFormatUI(){
+  const fmt=FORMATS.find(f=>f.id===format);
+  document.getElementById('go').innerHTML=`Generate ${fmt.clips} scene prompt${fmt.clips>1?'s':''}`;
+  const cont=fmt.clips>1?`<br>Keep the same kitchen + cook across all ${fmt.clips} for clean visual continuity.`:'';
+  document.getElementById('footnote').innerHTML=fmt.note+cont;
+}
+syncFormatUI();
 
 // upload
 const drop=document.getElementById('drop'), file=document.getElementById('file'), change=document.getElementById('change');
@@ -312,38 +340,56 @@ go.onclick=async()=>{
   go.disabled=true; go.innerHTML='<span class="spin"></span>Cooking up your scenes…';
   const kDesc=KITCHENS.find(k=>k.id===kitchen).desc;
   const cDesc=COOKS.find(c=>c.id===cook).desc;
+  const fmt=FORMATS.find(f=>f.id===format);
+  activeFmt=fmt;
+  const n=fmt.clips, len=fmt.clipLen, total=fmt.total, word=NUMWORD[n], multi=n>1;
+  const order=Array.from({length:n},(_,i)=>i+1).join('→');
 
-  const sys=`You are a world-class short-form food content director who writes prompts for the Grok Imagine AI video generator. You turn a recipe into FOUR sequential 10-second scene prompts that stitch into one continuous ~40-second faceless food reel engineered for maximum watch-through (completion rate).
+  const intro = multi
+    ? `You turn a recipe into ${word} sequential ${len}-second scene prompts that stitch into one continuous ~${total}-second faceless food reel engineered for maximum watch-through (completion rate).`
+    : `You turn a recipe into ONE self-contained ${len}-second scene prompt — a single faceless food reel engineered for maximum watch-through (completion rate).`;
+
+  const continuity = multi
+    ? `All ${n} scenes share the SAME kitchen and SAME cook for visual continuity. Repeat consistent visual descriptors (lighting, surface, camera feel) in every scene.`
+    : `The single clip uses the specified kitchen and cook. Establish consistent visual descriptors (lighting, surface, camera feel) within the one shot.`;
+
+  const openLoop = multi ? `\n- Add an open-loop ("wait for it") feel to scene 2 to drag viewers to the end.` : '';
+
+  const stitchDirective = `"Now stitch the ${word} ${len}-second clips you just generated into ONE continuous ~${total}-second vertical 9:16 video. Concatenate them in exact order ${order} with clean hard cuts on the beat (no transitions, no gaps). Keep each clip's ASMR audio running continuously across the cuts so the sound never drops. Burn in the overlay text for each scene as a bold lower-third, kept fully inside the title-safe area with ~10% padding from every edge so no text is ever cut off at the frame edges. Apply one consistent warm golden-hour color grade across all ${n} so they look like a single take. Export the final combined reel at 1080x1920, 30fps. Output the finished stitched video now — do not stop at ${n} separate clips."`;
+
+  const extrasRule = multi
+    ? `- Also write: a short overlay text line for each scene, a Facebook caption, a recipe "first comment", and a "stitch_guide" string. The stitch_guide is NOT instructions for a human or for CapCut — it is a direct command addressed to the Grok Imagine agent telling it to assemble the final video itself. Write it as an explicit imperative to Grok, e.g.: ${stitchDirective} Tailor the wording to this specific recipe's scenes but keep it as a do-this-now directive to the agent.`
+    : `- Also write: a short overlay text line for the scene, a Facebook caption, and a recipe "first comment". Do NOT include a stitch_guide — there is only one clip, so there is nothing to stitch.`;
+
+  const sceneShape = fmt.tags.map((tag,i)=>`    {"n":${i+1},"title":"short scene title","tag":"${tag}","prompt":"full grok prompt ending with ASMR audio direction","overlay":"on-screen text"}`).join(',\n');
+  const stitchField = multi ? `,\n  "stitch_guide":"a direct imperative command to the Grok Imagine agent to stitch the ${word.toLowerCase()} clips into one final ~${total}s 9:16 video now"` : '';
+
+  const sys=`You are a world-class short-form food content director who writes prompts for the Grok Imagine AI video generator. ${intro}
 
 RULES:
 - Read the recipe from the image: dish name, key ingredients, and steps.
-- All four scenes share the SAME kitchen and SAME cook for visual continuity. Repeat consistent visual descriptors (lighting, surface, camera feel) in every scene.
-- Scene arc: 1) hook / raw prep, 2) the cook/transform step, 3) the finishing money-shot (garnish/drizzle/plating), 4) the payoff (first bite or dip + slow pull-back reveal).
+- ${continuity}
+- Scene arc: ${fmt.arc}.
 - Each prompt: vivid, cinematic, specific camera + motion + lighting, appetizing. No on-screen people's faces.
 - ASMR SOUND IS MANDATORY: every scene prompt MUST end with an explicit ASMR audio direction describing the synchronized sounds for that scene (e.g. sizzling, knife chopping on a board, oil drizzling, crispy crunch, bubbling, spoon scraping, gentle ambient kitchen tone). Make the sounds specific to what's happening on screen in that scene and crisp/satisfying. Phrase it like: "ASMR audio: [specific synchronized sounds], close and crisp, no music."
 - OVERLAY TEXT MUST FIT ON SCREEN: each "overlay" line must be SHORT — max 4 words and at most ~22 characters total — so it fits on ONE line well inside a 9:16 vertical frame without ever running off the left or right edge. Make them punchy hook phrases (e.g. "Wait for it", "The secret step", "Crispy every time"). Never write a full sentence as an overlay. Do NOT use long dashes or run-on phrases.
 - In EVERY scene prompt, when describing the on-screen text, explicitly instruct Grok to render the overlay as large bold centered text kept fully within the title-safe area (about 10% padding from every edge), wrapping to a second line if needed, and NEVER letting any letters touch or cross the frame edges.
-- NO EMOJIS IN VIDEO TEXT: the four scene prompts and every "overlay" line must contain ZERO emojis, emoticons, or non-text symbols (no 🍳🔥✨ etc.). Grok cannot render emojis in on-screen overlays. Use plain words and standard punctuation only. Do NOT instruct Grok to add emojis anywhere on screen. (Emojis are allowed ONLY in the "caption" and "first_comment", which are posted as Facebook text and never burned into the video.)
-- Add an open-loop ("wait for it") feel to scene 2 to drag viewers to the end.
-- Also write: a short overlay text line for each scene, a Facebook caption, a recipe "first comment", and a "stitch_guide" string. The stitch_guide is NOT instructions for a human or for CapCut — it is a direct command addressed to the Grok Imagine agent telling it to assemble the final video itself. Write it as an explicit imperative to Grok, e.g.: "Now stitch the four 10-second clips you just generated into ONE continuous ~40-second vertical 9:16 video. Concatenate them in exact order 1→2→3→4 with clean hard cuts on the beat (no transitions, no gaps). Keep each clip's ASMR audio running continuously across the cuts so the sound never drops. Burn in the overlay text for each scene as a bold lower-third, kept fully inside the title-safe area with ~10% padding from every edge so no text is ever cut off at the frame edges. Apply one consistent warm golden-hour color grade across all four so they look like a single take. Export the final combined reel at 1080x1920, 30fps. Output the finished stitched video now — do not stop at four separate clips." Tailor the wording to this specific recipe's scenes but keep it as a do-this-now directive to the agent.
+- NO EMOJIS IN VIDEO TEXT: every scene prompt and every "overlay" line must contain ZERO emojis, emoticons, or non-text symbols (no 🍳🔥✨ etc.). Grok cannot render emojis in on-screen overlays. Use plain words and standard punctuation only. Do NOT instruct Grok to add emojis anywhere on screen. (Emojis are allowed ONLY in the "caption" and "first_comment", which are posted as Facebook text and never burned into the video.)${openLoop}
+${extrasRule}
 
 Return ONLY valid JSON, no markdown, no preamble, this exact shape:
 {
   "recipe_name": "string",
   "scenes": [
-    {"n":1,"title":"short scene title","tag":"HOOK","prompt":"full grok prompt ending with ASMR audio direction","overlay":"on-screen text"},
-    {"n":2,"title":"","tag":"TRANSFORM","prompt":"","overlay":""},
-    {"n":3,"title":"","tag":"MONEY SHOT","prompt":"","overlay":""},
-    {"n":4,"title":"","tag":"PAYOFF","prompt":"","overlay":""}
+${sceneShape}
   ],
   "caption":"facebook caption with emojis and a save prompt",
-  "first_comment":"the full recipe formatted for the first comment",
-  "stitch_guide":"a direct imperative command to the Grok Imagine agent to stitch the four clips into one final ~40s 9:16 video now"
+  "first_comment":"the full recipe formatted for the first comment"${stitchField}
 }`;
 
-  const userText=`Kitchen style to use in every scene: ${kDesc}.
-Cook to feature in every scene: ${cDesc}.
-Analyze the attached recipe image and generate the four scene prompts plus caption and first comment. Bake the kitchen and cook descriptors into every scene prompt for continuity.`;
+  const userText=`Kitchen style to use in ${multi?'every scene':'the scene'}: ${kDesc}.
+Cook to feature in ${multi?'every scene':'the scene'}: ${cDesc}.
+Analyze the attached recipe image and generate ${multi?`the ${n} scene prompts`:'the single scene prompt'} plus caption and first comment. Bake the kitchen and cook descriptors into ${multi?'every scene prompt':'the scene prompt'} for continuity.`;
 
   try{
     const resp=await fetch('/api/generate',{
@@ -381,7 +427,7 @@ Analyze the attached recipe image and generate the four scene prompts plus capti
   }catch(e){
     errEl.innerHTML=`<div class="err">${e.message.includes('JSON')?'The model returned an unexpected format — try again.':e.message}</div>`;
   }finally{
-    go.disabled=false; go.innerHTML='Generate 4 scene prompts'; refreshGo();
+    go.disabled=false; syncFormatUI(); refreshGo();
   }
 };
 
@@ -390,8 +436,10 @@ function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 function render(j){
   const kName=KITCHENS.find(k=>k.id===kitchen).label;
   const cName=COOKS.find(c=>c.id===cook).label;
+  const nScenes=(j.scenes||[]).length;
+  const meta=`${kName} kitchen · ${cName} · ${nScenes} × ${activeFmt.clipLen}s ${nScenes>1?'scenes':'clip'}`;
   let html=`<div class="recipe-name">${esc(j.recipe_name)}</div>
-  <div class="recipe-meta">${kName} kitchen · ${cName} · 4 × 10s scenes</div>`;
+  <div class="recipe-meta">${meta}</div>`;
 
   const allPrompts=j.scenes.map(s=>`SCENE ${s.n} — ${s.title}\n${s.prompt}\nOVERLAY: ${s.overlay}`).join('\n\n')
     + (j.stitch_guide?`\n\n— — — STITCH GUIDE — — —\n${j.stitch_guide}`:'');
@@ -409,7 +457,7 @@ function render(j){
     </div>`;
   });
 
-  html+=`<button class="copy-all" data-c="${encodeURIComponent(allPrompts)}">Copy all four prompts</button>`;
+  html+=`<button class="copy-all" data-c="${encodeURIComponent(allPrompts)}">${nScenes>1?'Copy all prompts':'Copy the prompt'}</button>`;
 
   html+=`<div class="extras">
     <h3>Post kit</h3>
