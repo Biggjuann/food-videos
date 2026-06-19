@@ -352,14 +352,10 @@ Analyze the attached recipe image and generate the four scene prompts plus capti
         model:'claude-sonnet-4-6',
         max_tokens:4096,
         system:sys,
-        messages:[
-          {role:'user',content:[
-            {type:'image',source:{type:'base64',media_type:imgMime,data:imgData}},
-            {type:'text',text:userText}
-          ]},
-          // Prefill the reply with "{" so the model returns pure JSON, no preamble or markdown fence.
-          {role:'assistant',content:'{'}
-        ]
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:imgMime,data:imgData}},
+          {type:'text',text:userText}
+        ]}]
       })
     });
     if(!resp.ok){
@@ -371,10 +367,10 @@ Analyze the attached recipe image and generate the four scene prompts plus capti
       throw new Error('The response was cut off before finishing — try again.');
     }
     let raw=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
-    // Re-attach the prefilled "{", strip any stray code fences, and trim anything after the final "}".
-    let txt=('{'+raw).replace(/```json/ig,'').replace(/```/g,'').trim();
-    const end=txt.lastIndexOf('}');
-    if(end!==-1) txt=txt.slice(0,end+1);
+    // Strip any markdown fences, then slice from the first "{" to the last "}" so stray preamble can't break parsing.
+    raw=raw.replace(/```json/ig,'').replace(/```/g,'').trim();
+    const start=raw.indexOf('{'), endIdx=raw.lastIndexOf('}');
+    let txt=(start!==-1&&endIdx!==-1)?raw.slice(start,endIdx+1):raw;
     let j;
     try{ j=JSON.parse(txt); }
     catch(parseErr){ console.error('Failed to parse model output:',txt); throw parseErr; }
