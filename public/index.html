@@ -322,7 +322,7 @@ RULES:
 - Each prompt: vivid, cinematic, specific camera + motion + lighting, appetizing. No on-screen people's faces.
 - ASMR SOUND IS MANDATORY: every scene prompt MUST end with an explicit ASMR audio direction describing the synchronized sounds for that scene (e.g. sizzling, knife chopping on a board, oil drizzling, crispy crunch, bubbling, spoon scraping, gentle ambient kitchen tone). Make the sounds specific to what's happening on screen in that scene and crisp/satisfying. Phrase it like: "ASMR audio: [specific synchronized sounds], close and crisp, no music."
 - Add an open-loop ("wait for it") feel to scene 2 to drag viewers to the end.
-- Also write: a short overlay text line for each scene, a Facebook caption, a recipe "first comment", and a "stitch_guide" string with clear step-by-step instructions for stitching the four 10-second clips into one continuous ~40-second vertical reel (correct order 1→2→3→4, hard cuts on the beat, keep continuous ASMR audio across cuts or layer one ambient bed, suggested free tools like CapCut, export 9:16 1080x1920).
+- Also write: a short overlay text line for each scene, a Facebook caption, a recipe "first comment", and a "stitch_guide" string. The stitch_guide is NOT instructions for a human or for CapCut — it is a direct command addressed to the Grok Imagine agent telling it to assemble the final video itself. Write it as an explicit imperative to Grok, e.g.: "Now stitch the four 10-second clips you just generated into ONE continuous ~40-second vertical 9:16 video. Concatenate them in exact order 1→2→3→4 with clean hard cuts on the beat (no transitions, no gaps). Keep each clip's ASMR audio running continuously across the cuts so the sound never drops. Burn in the overlay text for each scene as a bold lower-third. Apply one consistent warm golden-hour color grade across all four so they look like a single take. Export the final combined reel at 1080x1920, 30fps. Output the finished stitched video now — do not stop at four separate clips." Tailor the wording to this specific recipe's scenes but keep it as a do-this-now directive to the agent.
 
 Return ONLY valid JSON, no markdown, no preamble, this exact shape:
 {
@@ -335,7 +335,7 @@ Return ONLY valid JSON, no markdown, no preamble, this exact shape:
   ],
   "caption":"facebook caption with emojis and a save prompt",
   "first_comment":"the full recipe formatted for the first comment",
-  "stitch_guide":"step-by-step instructions to stitch the 4 clips into one reel"
+  "stitch_guide":"a direct imperative command to the Grok Imagine agent to stitch the four clips into one final ~40s 9:16 video now"
 }`;
 
   const userText=`Kitchen style to use in every scene: ${kDesc}.
@@ -419,7 +419,7 @@ function render(j){
       <div class="extra-text">${esc(j.first_comment)}<button class="copy" style="position:absolute" data-c="${encodeURIComponent(j.first_comment)}">Copy</button></div>
     </div>
     ${j.stitch_guide?`<div class="extra-block">
-      <span class="label">🎬 Stitch the 4 clips into one reel</span>
+      <span class="label">🎬 Final step — paste this back to Grok to auto-stitch the reel</span>
       <div class="extra-text">${esc(j.stitch_guide)}<button class="copy" style="position:absolute" data-c="${encodeURIComponent(j.stitch_guide)}">Copy</button></div>
     </div>`:''}
   </div>`;
