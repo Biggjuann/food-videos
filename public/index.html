@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reel Kitchen — Recipe to Grok Prompts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1a1410;
+    --panel:#241c16;
+    --panel-2:#2e241c;
+    --line:#3d3025;
+    --cream:#f4ece0;
+    --muted:#b7a690;
+    --butter:#e8b84b;
+    --butter-deep:#d49a2a;
+    --herb:#7d9b6a;
+    --char:#0f0b08;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Inter',sans-serif;
+    background:
+      radial-gradient(1200px 600px at 70% -10%, rgba(232,184,75,.10), transparent 60%),
+      var(--bg);
+    color:var(--cream);
+    min-height:100vh;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 24px 80px}
+  header{margin-bottom:40px}
+  .eyebrow{
+    font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--butter);font-weight:600;margin-bottom:14px;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:clamp(40px,7vw,68px);
+    line-height:.98;
+    letter-spacing:-.02em;
+    color:var(--cream);
+  }
+  h1 em{font-style:italic;color:var(--butter)}
+  .sub{margin-top:16px;color:var(--muted);font-size:16px;max-width:560px}
+
+  .grid{display:grid;grid-template-columns:380px 1fr;gap:28px;margin-top:40px}
+  @media(max-width:820px){.grid{grid-template-columns:1fr}}
+
+  .card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:24px;
+  }
+  .label{
+    font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);font-weight:600;margin-bottom:12px;display:block;
+  }
+
+  .key-row{margin-bottom:22px}
+  .key-input{
+    width:100%;background:var(--char);border:1px solid var(--line);
+    color:var(--cream);border-radius:10px;padding:11px 13px;font-size:14px;
+    font-family:'Inter',sans-serif;
+  }
+  .key-input:focus{outline:none;border-color:var(--butter-deep)}
+  .key-note{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.45}
+
+  .drop{
+    border:1.5px dashed var(--line);border-radius:14px;
+    background:var(--panel-2);
+    aspect-ratio:1/1;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;
+    cursor:pointer;transition:border-color .2s, background .2s;
+    position:relative;overflow:hidden;
+  }
+  .drop:hover{border-color:var(--butter-deep);background:#33271d}
+  .drop.has-img{border-style:solid}
+  .drop img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .drop-inner{padding:24px;pointer-events:none;position:relative;z-index:1}
+  .drop .plus{font-family:'Fraunces',serif;font-size:38px;color:var(--butter);line-height:1}
+  .drop .dt{margin-top:10px;color:var(--cream);font-weight:500;font-size:15px}
+  .drop .ds{margin-top:4px;color:var(--muted);font-size:13px}
+  .drop.has-img .drop-inner{display:none}
+  .change{
+    position:absolute;bottom:10px;right:10px;z-index:2;
+    background:rgba(15,11,8,.82);color:var(--cream);
+    font-size:12px;padding:6px 11px;border-radius:8px;
+    border:1px solid var(--line);
+  }
+
+  .seg-group{margin-top:22px}
+  .seg{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{
+    border:1px solid var(--line);background:var(--panel-2);
+    color:var(--muted);border-radius:999px;
+    padding:9px 15px;font-size:14px;font-weight:500;cursor:pointer;
+    transition:all .15s;user-select:none;font-family:'Inter',sans-serif;
+  }
+  .chip:hover{color:var(--cream);border-color:#5a4634}
+  .chip.on{
+    background:var(--butter);color:var(--char);border-color:var(--butter);
+    font-weight:600;
+  }
+  .chip .emo{margin-right:6px}
+
+  .go{
+    margin-top:26px;width:100%;
+    background:var(--butter);color:var(--char);
+    border:none;border-radius:12px;padding:15px;
+    font-size:16px;font-weight:600;cursor:pointer;
+    font-family:'Inter',sans-serif;transition:background .15s, transform .05s;
+  }
+  .go:hover{background:var(--butter-deep)}
+  .go:active{transform:translateY(1px)}
+  .go:disabled{background:#4a3a2a;color:#8a7a66;cursor:not-allowed}
+
+  /* output */
+  .out-empty{
+    border:1px solid var(--line);border-radius:18px;background:var(--panel);
+    min-height:420px;display:flex;align-items:center;justify-content:center;
+    text-align:center;padding:40px;
+  }
+  .out-empty .oe-title{font-family:'Fraunces',serif;font-size:24px;color:var(--cream);margin-bottom:8px}
+  .out-empty .oe-sub{color:var(--muted);font-size:14px;max-width:300px}
+
+  .recipe-name{
+    font-family:'Fraunces',serif;font-size:30px;font-weight:600;
+    color:var(--cream);margin-bottom:4px;letter-spacing:-.01em;
+  }
+  .recipe-meta{color:var(--muted);font-size:13px;margin-bottom:22px}
+
+  .scene{
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:16px;padding:20px 22px;margin-bottom:14px;
+    position:relative;
+  }
+  .scene-head{display:flex;align-items:baseline;gap:12px;margin-bottom:12px}
+  .scene-num{
+    font-family:'Fraunces',serif;font-size:13px;font-weight:600;
+    color:var(--char);background:var(--butter);
+    width:30px;height:30px;border-radius:8px;
+    display:inline-flex;align-items:center;justify-content:center;flex:none;
+  }
+  .scene-title{font-weight:600;color:var(--cream);font-size:15px}
+  .scene-tag{
+    margin-left:auto;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--herb);font-weight:600;
+  }
+  .scene-prompt{
+    color:var(--muted);font-size:14px;line-height:1.55;
+    background:var(--char);border:1px solid var(--line);
+    border-radius:10px;padding:13px 15px;margin-bottom:10px;
+  }
+  .scene-overlay{font-size:13px;color:var(--cream)}
+  .scene-overlay b{color:var(--butter);font-weight:600}
+  .copy{
+    position:absolute;top:18px;right:18px;
+    background:var(--panel-2);border:1px solid var(--line);
+    color:var(--muted);font-size:12px;font-weight:600;
+    padding:6px 11px;border-radius:8px;cursor:pointer;transition:all .15s;
+  }
+  .copy:hover{color:var(--cream);border-color:#5a4634}
+  .copy.done{color:var(--herb);border-color:var(--herb)}
+
+  .copy-all{
+    width:100%;margin-top:6px;margin-bottom:24px;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--cream);
+    border-radius:12px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;
+    font-family:'Inter',sans-serif;transition:border-color .15s;
+  }
+  .copy-all:hover{border-color:var(--butter-deep)}
+
+  .extras{border-top:1px solid var(--line);padding-top:20px}
+  .extras h3{
+    font-family:'Fraunces',serif;font-size:18px;color:var(--cream);
+    margin-bottom:12px;font-weight:600;
+  }
+  .extra-block{margin-bottom:16px}
+  .extra-block .label{margin-bottom:6px}
+  .extra-text{
+    color:var(--muted);font-size:14px;line-height:1.5;white-space:pre-wrap;
+    background:var(--char);border:1px solid var(--line);
+    border-radius:10px;padding:13px 15px;position:relative;
+  }
+
+  .err{
+    background:#3a1f1a;border:1px solid #6e3a2e;
+    color:#f3c4b6;border-radius:10px;padding:13px 15px;font-size:14px;margin-top:16px;
+  }
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid var(--char);
+    border-top-color:transparent;border-radius:50%;animation:s .7s linear infinite;
+    vertical-align:-3px;margin-right:8px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .footnote{margin-top:34px;color:var(--muted);font-size:12px;text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Faceless food reels · powered by Grok Imagine</div>
+    <h1>Reel <em>Kitchen</em></h1>
+    <p class="sub">Drop a recipe photo, pick your kitchen and your cook, and get four stitch-ready 10-second scene prompts built to hold viewers to the very last bite.</p>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: controls -->
+    <div class="card">
+      <label class="label">Recipe image</label>
+      <div class="drop" id="drop">
+        <div class="drop-inner">
+          <div class="plus">+</div>
+          <div class="dt">Upload recipe photo</div>
+          <div class="ds">A clear shot with the dish & ingredient list</div>
+        </div>
+        <span class="change" id="change" style="display:none">Change</span>
+      </div>
+      <input type="file" id="file" accept="image/*" hidden>
+
+      <div class="seg-group">
+        <label class="label">Kitchen style</label>
+        <div class="seg" id="kitchen"></div>
+      </div>
+
+      <div class="seg-group">
+        <label class="label">Who's cooking</label>
+        <div class="seg" id="cook"></div>
+      </div>
+
+      <button class="go" id="go" disabled>Generate 4 scene prompts</button>
+      <div id="err"></div>
+    </div>
+
+    <!-- RIGHT: output -->
+    <div id="output">
+      <div class="out-empty">
+        <div>
+          <div class="oe-title">Your scenes will plate up here</div>
+          <div class="oe-sub">Four 10-second prompts, an overlay script, a caption, and a recipe first-comment — ready to paste into Grok.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    Grok Imagine caps clips at 10 seconds — these four stitch into one ~40s reel.<br>
+    Keep the same kitchen + cook across all four for clean visual continuity.
+  </div>
+</div>
+
+<script>
+const KITCHENS = [
+  {id:'farmhouse', emo:'🌾', label:'Farmhouse', desc:'rustic farmhouse kitchen, reclaimed wood, ceramic crocks, linen, soft window light, warm and homey'},
+  {id:'warm',      emo:'🔥', label:'Warm',      desc:'cozy warm-toned kitchen, golden ambient light, butter-yellow walls, brass fixtures, inviting and rich'},
+  {id:'outdoor',   emo:'🌿', label:'Outdoor',   desc:'open-air outdoor kitchen, natural daylight, greenery and herbs in frame, stone counter, fresh airy vibe'},
+  {id:'modern',    emo:'◻️', label:'Modern',    desc:'sleek modern kitchen, matte black & marble surfaces, clean minimal lines, crisp directional light, upscale'}
+];
+const COOKS = [
+  {id:'woman', emo:'👩‍🍳', label:'Woman', desc:'a woman chef (shown from the chest down and from behind/side, face never visible), clean apron, confident hands'},
+  {id:'man',   emo:'👨‍🍳', label:'Man',   desc:'a man chef (shown from the chest down and from behind/side, face never visible), rolled sleeves, steady hands'},
+  {id:'hands', emo:'🤲', label:'Just hands', desc:'only a pair of human hands in frame, no face or body, clean close-up cooking motions'},
+  {id:'cat',   emo:'🐱', label:'Cat',   desc:'an adorable cat "chef" in a tiny chef hat, playfully present in frame, anthropomorphic charming cooking motions, whimsical but appetizing'},
+  {id:'dog',   emo:'🐶', label:'Dog',   desc:'a cute dog "chef" in a tiny chef hat, endearing and expressive in frame, whimsical anthropomorphic cooking, still appetizing'},
+  {id:'duck',  emo:'🦆', label:'Duck',  desc:'a charming duck "chef" in a tiny chef hat waddling in frame, comedic whimsical anthropomorphic cooking energy, scroll-stopping and cute'}
+];
+
+let imgData=null, imgMime=null;
+let kitchen='warm', cook='hands';
+
+// build chips
+const kEl=document.getElementById('kitchen'), cEl=document.getElementById('cook');
+function chips(host, items, current, onpick){
+  host.innerHTML='';
+  items.forEach(it=>{
+    const b=document.createElement('div');
+    b.className='chip'+(it.id===current?' on':'');
+    b.innerHTML=`<span class="emo">${it.emo}</span>${it.label}`;
+    b.onclick=()=>{onpick(it.id);[...host.children].forEach(c=>c.classList.remove('on'));b.classList.add('on')};
+    host.appendChild(b);
+  });
+}
+chips(kEl,KITCHENS,kitchen,id=>kitchen=id);
+chips(cEl,COOKS,cook,id=>cook=id);
+
+// upload
+const drop=document.getElementById('drop'), file=document.getElementById('file'), change=document.getElementById('change');
+drop.onclick=()=>file.click();
+file.onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    imgData=r.result.split(',')[1]; imgMime=f.type;
+    drop.classList.add('has-img');
+    let im=drop.querySelector('img'); if(!im){im=document.createElement('img');drop.appendChild(im);}
+    im.src=r.result;
+    change.style.display='block';
+    refreshGo();
+  };
+  r.readAsDataURL(f);
+};
+function refreshGo(){document.getElementById('go').disabled=!imgData;}
+
+// generate
+const go=document.getElementById('go'), out=document.getElementById('output'), errEl=document.getElementById('err');
+go.onclick=async()=>{
+  errEl.innerHTML='';
+  go.disabled=true; go.innerHTML='<span class="spin"></span>Cooking up your scenes…';
+  const kDesc=KITCHENS.find(k=>k.id===kitchen).desc;
+  const cDesc=COOKS.find(c=>c.id===cook).desc;
+
+  const sys=`You are a world-class short-form food content director who writes prompts for the Grok Imagine AI video generator. You turn a recipe into FOUR sequential 10-second scene prompts that stitch into one continuous ~40-second faceless food reel engineered for maximum watch-through (completion rate).
+
+RULES:
+- Read the recipe from the image: dish name, key ingredients, and steps.
+- All four scenes share the SAME kitchen and SAME cook for visual continuity. Repeat consistent visual descriptors (lighting, surface, camera feel) in every scene.
+- Scene arc: 1) hook / raw prep, 2) the cook/transform step, 3) the finishing money-shot (garnish/drizzle/plating), 4) the payoff (first bite or dip + slow pull-back reveal).
+- Each prompt: vivid, cinematic, specific camera + motion + lighting, appetizing. No on-screen people's faces.
+- ASMR SOUND IS MANDATORY: every scene prompt MUST end with an explicit ASMR audio direction describing the synchronized sounds for that scene (e.g. sizzling, knife chopping on a board, oil drizzling, crispy crunch, bubbling, spoon scraping, gentle ambient kitchen tone). Make the sounds specific to what's happening on screen in that scene and crisp/satisfying. Phrase it like: "ASMR audio: [specific synchronized sounds], close and crisp, no music."
+- Add an open-loop ("wait for it") feel to scene 2 to drag viewers to the end.
+- Also write: a short overlay text line for each scene, a Facebook caption, a recipe "first comment", and a "stitch_guide" string with clear step-by-step instructions for stitching the four 10-second clips into one continuous ~40-second vertical reel (correct order 1→2→3→4, hard cuts on the beat, keep continuous ASMR audio across cuts or layer one ambient bed, suggested free tools like CapCut, export 9:16 1080x1920).
+
+Return ONLY valid JSON, no markdown, no preamble, this exact shape:
+{
+  "recipe_name": "string",
+  "scenes": [
+    {"n":1,"title":"short scene title","tag":"HOOK","prompt":"full grok prompt ending with ASMR audio direction","overlay":"on-screen text"},
+    {"n":2,"title":"","tag":"TRANSFORM","prompt":"","overlay":""},
+    {"n":3,"title":"","tag":"MONEY SHOT","prompt":"","overlay":""},
+    {"n":4,"title":"","tag":"PAYOFF","prompt":"","overlay":""}
+  ],
+  "caption":"facebook caption with emojis and a save prompt",
+  "first_comment":"the full recipe formatted for the first comment",
+  "stitch_guide":"step-by-step instructions to stitch the 4 clips into one reel"
+}`;
+
+  const userText=`Kitchen style to use in every scene: ${kDesc}.
+Cook to feature in every scene: ${cDesc}.
+Analyze the attached recipe image and generate the four scene prompts plus caption and first comment. Bake the kitchen and cook descriptors into every scene prompt for continuity.`;
+
+  try{
+    const resp=await fetch('/api/generate',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:2200,
+        system:sys,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:imgMime,data:imgData}},
+          {type:'text',text:userText}
+        ]}]
+      })
+    });
+    if(!resp.ok){
+      const t=await resp.text();
+      throw new Error(`API ${resp.status}: ${t.slice(0,300)}`);
+    }
+    const data=await resp.json();
+    let txt=data.content.filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+    txt=txt.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```$/,'').trim();
+    const j=JSON.parse(txt);
+    render(j);
+  }catch(e){
+    errEl.innerHTML=`<div class="err">${e.message.includes('JSON')?'The model returned an unexpected format — try again.':e.message}</div>`;
+  }finally{
+    go.disabled=false; go.innerHTML='Generate 4 scene prompts'; refreshGo();
+  }
+};
+
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function render(j){
+  const kName=KITCHENS.find(k=>k.id===kitchen).label;
+  const cName=COOKS.find(c=>c.id===cook).label;
+  let html=`<div class="recipe-name">${esc(j.recipe_name)}</div>
+  <div class="recipe-meta">${kName} kitchen · ${cName} · 4 × 10s scenes</div>`;
+
+  const allPrompts=j.scenes.map(s=>`SCENE ${s.n} — ${s.title}\n${s.prompt}\nOVERLAY: ${s.overlay}`).join('\n\n')
+    + (j.stitch_guide?`\n\n— — — STITCH GUIDE — — —\n${j.stitch_guide}`:'');
+
+  j.scenes.forEach(s=>{
+    html+=`<div class="scene">
+      <button class="copy" data-c="${encodeURIComponent(s.prompt)}">Copy</button>
+      <div class="scene-head">
+        <span class="scene-num">${s.n}</span>
+        <span class="scene-title">${esc(s.title)}</span>
+        <span class="scene-tag">${esc(s.tag)}</span>
+      </div>
+      <div class="scene-prompt">${esc(s.prompt)}</div>
+      <div class="scene-overlay">Overlay: <b>${esc(s.overlay)}</b></div>
+    </div>`;
+  });
+
+  html+=`<button class="copy-all" data-c="${encodeURIComponent(allPrompts)}">Copy all four prompts</button>`;
+
+  html+=`<div class="extras">
+    <h3>Post kit</h3>
+    <div class="extra-block">
+      <span class="label">Facebook caption</span>
+      <div class="extra-text">${esc(j.caption)}<button class="copy" style="position:absolute" data-c="${encodeURIComponent(j.caption)}">Copy</button></div>
+    </div>
+    <div class="extra-block">
+      <span class="label">First comment (recipe)</span>
+      <div class="extra-text">${esc(j.first_comment)}<button class="copy" style="position:absolute" data-c="${encodeURIComponent(j.first_comment)}">Copy</button></div>
+    </div>
+    ${j.stitch_guide?`<div class="extra-block">
+      <span class="label">🎬 Stitch the 4 clips into one reel</span>
+      <div class="extra-text">${esc(j.stitch_guide)}<button class="copy" style="position:absolute" data-c="${encodeURIComponent(j.stitch_guide)}">Copy</button></div>
+    </div>`:''}
+  </div>`;
+
+  out.innerHTML=html;
+
+  out.querySelectorAll('.copy, .copy-all').forEach(b=>{
+    b.onclick=()=>{
+      navigator.clipboard.writeText(decodeURIComponent(b.dataset.c));
+      const old=b.textContent; b.textContent='Copied'; b.classList.add('done');
+      setTimeout(()=>{b.textContent=old;b.classList.remove('done')},1400);
+    };
+  });
+}
+</script>
+</body>
+</html>
