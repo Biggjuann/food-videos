@@ -350,12 +350,16 @@ Analyze the attached recipe image and generate the four scene prompts plus capti
       },
       body:JSON.stringify({
         model:'claude-sonnet-4-6',
-        max_tokens:2200,
+        max_tokens:4096,
         system:sys,
-        messages:[{role:'user',content:[
-          {type:'image',source:{type:'base64',media_type:imgMime,data:imgData}},
-          {type:'text',text:userText}
-        ]}]
+        messages:[
+          {role:'user',content:[
+            {type:'image',source:{type:'base64',media_type:imgMime,data:imgData}},
+            {type:'text',text:userText}
+          ]},
+          // Prefill the reply with "{" so the model returns pure JSON, no preamble or markdown fence.
+          {role:'assistant',content:'{'}
+        ]
       })
     });
     if(!resp.ok){
@@ -363,9 +367,17 @@ Analyze the attached recipe image and generate the four scene prompts plus capti
       throw new Error(`API ${resp.status}: ${t.slice(0,300)}`);
     }
     const data=await resp.json();
-    let txt=data.content.filter(b=>b.type==='text').map(b=>b.text).join('').trim();
-    txt=txt.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```$/,'').trim();
-    const j=JSON.parse(txt);
+    if(data.stop_reason==='max_tokens'){
+      throw new Error('The response was cut off before finishing — try again.');
+    }
+    let raw=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+    // Re-attach the prefilled "{", strip any stray code fences, and trim anything after the final "}".
+    let txt=('{'+raw).replace(/```json/ig,'').replace(/```/g,'').trim();
+    const end=txt.lastIndexOf('}');
+    if(end!==-1) txt=txt.slice(0,end+1);
+    let j;
+    try{ j=JSON.parse(txt); }
+    catch(parseErr){ console.error('Failed to parse model output:',txt); throw parseErr; }
     render(j);
   }catch(e){
     errEl.innerHTML=`<div class="err">${e.message.includes('JSON')?'The model returned an unexpected format — try again.':e.message}</div>`;
