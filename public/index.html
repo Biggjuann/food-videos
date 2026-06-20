@@ -198,6 +198,33 @@
     vertical-align:-3px;margin-right:8px}
   @keyframes s{to{transform:rotate(360deg)}}
   .footnote{margin-top:34px;color:var(--muted);font-size:12px;text-align:center;line-height:1.6}
+
+  .engine-note{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45}
+  .render-panel{
+    background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:20px 22px;margin-bottom:18px;
+  }
+  .render-panel h3{font-family:'Fraunces',serif;font-size:18px;color:var(--cream);margin-bottom:6px;font-weight:600}
+  .render-panel .rp-sub{color:var(--muted);font-size:13px;margin-bottom:14px;line-height:1.5}
+  .render-btn{
+    width:100%;background:var(--herb);color:#0f0b08;border:none;border-radius:12px;
+    padding:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;
+    transition:filter .15s;
+  }
+  .render-btn:hover{filter:brightness(1.08)}
+  .render-btn:disabled{background:#3f4a37;color:#8a9580;cursor:not-allowed}
+  .rp-progress{margin-top:14px}
+  .rp-bar{height:8px;background:var(--char);border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+  .rp-bar span{display:block;height:100%;background:var(--butter);width:0;transition:width .4s}
+  .rp-status{margin-top:8px;color:var(--cream);font-size:13px}
+  .rp-status.err{color:#f3c4b6}
+  video.final{width:100%;border-radius:12px;margin-top:14px;background:#000;border:1px solid var(--line)}
+  .rp-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .rp-links a{
+    font-size:12px;font-weight:600;color:var(--cream);text-decoration:none;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:7px 11px;
+  }
+  .rp-links a:hover{border-color:var(--butter-deep)}
 </style>
 </head>
 <body>
@@ -235,6 +262,12 @@
       <div class="seg-group">
         <label class="label">Reel length</label>
         <div class="seg" id="format"></div>
+      </div>
+
+      <div class="seg-group">
+        <label class="label">How to make it</label>
+        <div class="seg" id="engine"></div>
+        <div class="engine-note" id="engineNote"></div>
       </div>
 
       <button class="go" id="go" disabled>Generate scene prompts</button>
@@ -285,10 +318,14 @@ const FORMATS = [
     note:'One self-contained 6-second clip — no stitching needed.'}
 ];
 const NUMWORD={1:'ONE',2:'TWO',3:'THREE',4:'FOUR'};
+const ENGINES = [
+  {id:'prompts', emo:'📝', label:'Grok prompts', desc:'Generate copy-ready scene prompts you paste into Grok Imagine yourself. Free — only uses the recipe-writing step.'},
+  {id:'fal', emo:'⚙️', label:'Auto-render (fal.ai)', desc:'Bypass Grok and render the reel here using fal.ai (the same pipeline the "influential" project uses): a Flux keyframe per scene, animated to video, then stitched into one MP4. Costs fal credits per clip and takes a few minutes. Requires FAL_KEY set in Railway. Video only — no ASMR audio in this mode.'}
+];
 
 let imgData=null, imgMime=null;
-let kitchen='warm', cook='hands', format='r40';
-let activeFmt=FORMATS[0];
+let kitchen='warm', cook='hands', format='r40', engine='prompts';
+let activeFmt=FORMATS[0], lastResult=null;
 
 // build chips
 const kEl=document.getElementById('kitchen'), cEl=document.getElementById('cook');
@@ -302,16 +339,18 @@ function chips(host, items, current, onpick){
     host.appendChild(b);
   });
 }
-const fEl=document.getElementById('format');
+const fEl=document.getElementById('format'), engEl=document.getElementById('engine');
 chips(kEl,KITCHENS,kitchen,id=>kitchen=id);
 chips(cEl,COOKS,cook,id=>cook=id);
 chips(fEl,FORMATS,format,id=>{format=id;syncFormatUI();});
+chips(engEl,ENGINES,engine,id=>{engine=id;syncFormatUI();});
 
 function syncFormatUI(){
   const fmt=FORMATS.find(f=>f.id===format);
   document.getElementById('go').innerHTML=`Generate ${fmt.clips} scene prompt${fmt.clips>1?'s':''}`;
   const cont=fmt.clips>1?`<br>Keep the same kitchen + cook across all ${fmt.clips} for clean visual continuity.`:'';
   document.getElementById('footnote').innerHTML=fmt.note+cont;
+  document.getElementById('engineNote').textContent=ENGINES.find(e=>e.id===engine).desc;
 }
 syncFormatUI();
 
@@ -434,6 +473,7 @@ Analyze the attached recipe image and generate ${multi?`the ${n} scene prompts`:
 function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 function render(j){
+  lastResult=j;
   const kName=KITCHENS.find(k=>k.id===kitchen).label;
   const cName=COOKS.find(c=>c.id===cook).label;
   const nScenes=(j.scenes||[]).length;
@@ -459,6 +499,19 @@ function render(j){
 
   html+=`<button class="copy-all" data-c="${encodeURIComponent(allPrompts)}">${nScenes>1?'Copy all prompts':'Copy the prompt'}</button>`;
 
+  if(engine==='fal'){
+    html+=`<div class="render-panel" id="renderPanel">
+      <h3>Auto-render with fal.ai</h3>
+      <div class="rp-sub">Render ${nScenes} clip${nScenes>1?'s':''} from these prompts and ${nScenes>1?'stitch them into one ~'+activeFmt.total+'s reel':'finalize the clip'}. A few minutes and some fal credits. Video only — no audio in this mode.</div>
+      <button class="render-btn" id="renderBtn">🎬 Render ${nScenes>1?'this reel':'this clip'}</button>
+      <div class="rp-progress" id="rpProgress" style="display:none">
+        <div class="rp-bar"><span id="rpBar"></span></div>
+        <div class="rp-status" id="rpStatus"></div>
+        <div class="rp-links" id="rpLinks"></div>
+      </div>
+    </div>`;
+  }
+
   html+=`<div class="extras">
     <h3>Post kit</h3>
     <div class="extra-block">
@@ -483,6 +536,65 @@ function render(j){
       const old=b.textContent; b.textContent='Copied'; b.classList.add('done');
       setTimeout(()=>{b.textContent=old;b.classList.remove('done')},1400);
     };
+  });
+
+  const rb=document.getElementById('renderBtn');
+  if(rb) rb.onclick=startRender;
+}
+
+async function startRender(){
+  const j=lastResult; if(!j||!j.scenes) return;
+  const btn=document.getElementById('renderBtn');
+  const prog=document.getElementById('rpProgress');
+  const bar=document.getElementById('rpBar');
+  const status=document.getElementById('rpStatus');
+  const links=document.getElementById('rpLinks');
+  btn.disabled=true; btn.textContent='Rendering…';
+  prog.style.display='block'; status.className='rp-status'; status.textContent='Starting…'; links.innerHTML=''; bar.style.width='4%';
+  try{
+    const resp=await fetch('/api/render',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({scenes:j.scenes.map(s=>({prompt:s.prompt})),clipLen:activeFmt.clipLen})
+    });
+    const data=await resp.json();
+    if(!resp.ok) throw new Error(data.error||('Render request failed ('+resp.status+')'));
+    await pollRender(data.jobId,{bar,status,links,btn});
+  }catch(e){
+    status.className='rp-status err'; status.textContent=e.message;
+    btn.disabled=false; btn.textContent='Try render again';
+  }
+}
+
+function pollRender(jobId,ui){
+  const {bar,status,links,btn}=ui;
+  return new Promise((resolve)=>{
+    const tick=async()=>{
+      try{
+        const r=await fetch('/api/render/'+jobId);
+        const job=await r.json();
+        if(!r.ok) throw new Error(job.error||'Lost the render job.');
+        const pct=Math.max(4,Math.round((job.progress/Math.max(1,job.total))*90));
+        bar.style.width=(job.status==='done'?100:pct)+'%';
+        status.textContent=job.message||job.status;
+        if(job.status==='done'){
+          status.textContent='Done — your reel is ready.';
+          let h=`<video class="final" controls playsinline src="${job.finalUrl}"></video>`;
+          h+=`<div class="rp-links"><a href="${job.finalUrl}" download="reel.mp4">⬇ Download reel</a>`;
+          job.clips.forEach((c,i)=>{h+=`<a href="${c}" download="clip${i+1}.mp4">Clip ${i+1}</a>`;});
+          h+=`</div>`;
+          links.innerHTML=h;
+          btn.style.display='none';
+          return resolve();
+        }
+        if(job.status==='error') throw new Error(job.error||'Render failed.');
+        setTimeout(tick,3000);
+      }catch(e){
+        status.className='rp-status err'; status.textContent=e.message;
+        btn.disabled=false; btn.textContent='Try render again';
+        resolve();
+      }
+    };
+    tick();
   });
 }
 </script>

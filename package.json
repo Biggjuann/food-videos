@@ -1,7 +1,7 @@
 {
   "name": "reel-kitchen",
   "version": "1.0.0",
-  "description": "Recipe photo -> four stitch-ready Grok Imagine scene prompts. Proxies Anthropic so the API key stays server-side.",
+  "description": "Recipe photo -> stitch-ready Grok Imagine scene prompts, or auto-rendered reels via fal.ai. Proxies Anthropic and fal so keys stay server-side.",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
@@ -11,6 +11,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "ffmpeg-static": "^5.2.0"
   }
 }

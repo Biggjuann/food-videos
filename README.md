@@ -1,8 +1,13 @@
 # Reel Kitchen 🍳
 
-Upload a recipe photo → get four stitch-ready 10-second **Grok Imagine** scene prompts (with ASMR sound directions, overlay text, a Facebook caption, a recipe first-comment, and a stitch guide). Built for a faceless clean-eating reels account.
+Upload a recipe photo → get stitch-ready **Grok Imagine** scene prompts (with ASMR sound directions, overlay text, a Facebook caption, a recipe first-comment, and a stitch guide). Built for a faceless clean-eating reels account.
 
-The Anthropic API key lives **server-side only** (a Railway environment variable). It is never sent to the browser and never stored in this repo.
+Pick the reel length (40s / 4×10s, 15s / 3×5s, or one 6s clip), and choose **how to make it**:
+
+- **Grok prompts** (default) — copy-ready prompts you paste into Grok Imagine yourself.
+- **Auto-render (fal.ai)** — bypass Grok and render the reel right here, using the same fal.ai pipeline as the [`influential`](https://github.com/Biggjuann/influential) project: a Flux keyframe per scene → fal image-to-video → ffmpeg stitch into one MP4. Costs fal credits and takes a few minutes. Video only (no audio) in this mode.
+
+All API keys live **server-side only** (Railway environment variables). They are never sent to the browser and never stored in this repo.
 
 ---
 
@@ -10,17 +15,25 @@ The Anthropic API key lives **server-side only** (a Railway environment variable
 
 ```
 Browser (public/index.html)
-   │  POST /api/generate   (NO key in the request)
+   │  POST /api/generate              ── Grok-prompt mode (no key in request)
+   │  POST /api/render → GET /api/render/:id  ── fal.ai auto-render mode
    ▼
 server.js  (Express)
-   │  adds ANTHROPIC_API_KEY from process.env
+   │  /api/generate → adds ANTHROPIC_API_KEY → api.anthropic.com/v1/messages
+   │  /api/render   → adds FAL_KEY → Flux keyframe + fal image-to-video,
+   │                  then ffmpeg-static stitches the clips into one MP4
    ▼
-api.anthropic.com/v1/messages
+served back from /renders/<job>/final.mp4
 ```
 
-- `public/index.html` — the app UI. Calls `/api/generate`. Contains **no key**.
-- `server.js` — serves the UI and proxies to Anthropic, injecting the key from `process.env.ANTHROPIC_API_KEY`.
-- The key is set in **Railway → Variables**, encrypted at rest, never in git.
+- `public/index.html` — the app UI. Calls `/api/generate` and `/api/render`. Contains **no keys**.
+- `server.js` — serves the UI, proxies Anthropic, and runs the fal.ai render pipeline. Keys come from `process.env` only.
+- `ANTHROPIC_API_KEY` (always) and `FAL_KEY` (only for auto-render) are set in **Railway → Variables**, encrypted at rest, never in git.
+
+### Auto-render notes
+- Rendering is asynchronous: `POST /api/render` returns a `jobId`, the browser polls `GET /api/render/:id` for progress, and the finished MP4 is served from `/renders/...`.
+- Clip files live in the container's temp dir and are **ephemeral** — download the reel; it won't survive a redeploy/restart.
+- `FAL_KEY` is optional. Without it the app still runs in Grok-prompt mode; the render button just reports a "missing FAL_KEY" error.
 
 ---
 
