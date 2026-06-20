@@ -9,6 +9,7 @@ const fsp = require('fs/promises');
 const os = require('os');
 const { spawn } = require('child_process');
 const ffmpegPath = require('ffmpeg-static');
+const multer = require('multer');
 
 const app = express();
 app.use(express.json({ limit: '12mb' })); // base64 images can be large
@@ -26,6 +27,17 @@ const FAL_TIMEOUT_MS = parseInt(process.env.FAL_TIMEOUT_MS || '480000', 10); // 
 const RENDER_ROOT = path.join(os.tmpdir(), 'reel-kitchen-renders');
 fs.mkdirSync(RENDER_ROOT, { recursive: true });
 app.use('/renders', express.static(RENDER_ROOT));
+
+// Uploaded clips (for the manual stitch tool) land in a temp dir; up to 8 files, 250MB each.
+const UPLOAD_DIR = path.join(RENDER_ROOT, '_uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const upload = multer({
+  dest: UPLOAD_DIR,
+  limits: { fileSize: 250 * 1024 * 1024, files: 8 },
+  // Accept by MIME or by extension — some browsers/clients send application/octet-stream for video.
+  fileFilter: (_req, file, cb) =>
+    cb(null, /^video\//.test(file.mimetype) || /\.(mp4|mov|m4v|webm|mkv|avi)$/i.test(file.originalname))
+});
 
 // ----------------------------------------------------------------------------
 // Anthropic proxy (used for the Grok-prompt flow)
@@ -113,6 +125,21 @@ async function stitch(clipPaths, outPath) {
     '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-y', outPath]);
 }
 
+// Like stitch(), but keeps and concatenates each clip's audio (for user-uploaded clips
+// that have baked-in sound). Normalizes audio to 48k stereo so segments are joinable.
+async function stitchWithAudio(clipPaths, outPath) {
+  const inputs = clipPaths.flatMap(p => ['-i', p]);
+  const labels = clipPaths.map((_, i) =>
+    `[${i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30[v${i}];` +
+    `[${i}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a${i}]`
+  ).join(';');
+  const concatIn = clipPaths.map((_, i) => `[v${i}][a${i}]`).join('');
+  const filter = `${labels};${concatIn}concat=n=${clipPaths.length}:v=1:a=1[outv][outa]`;
+  await runFfmpeg([...inputs, '-filter_complex', filter, '-map', '[outv]', '-map', '[outa]',
+    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '48000',
+    '-movflags', '+faststart', '-y', outPath]);
+}
+
 async function renderJob(job, dir, scenes, clipLen) {
   const duration = clipLen >= 10 ? '10' : '5'; // Kling supports 5s or 10s
   const clipPaths = [];
@@ -171,6 +198,33 @@ app.get('/api/render/:id', (req, res) => {
   const job = jobs.get(req.params.id);
   if (!job) return res.status(404).json({ error: 'Unknown render job.' });
   res.json(job);
+});
+
+// Stitch user-uploaded clips (e.g. clips Grok generated but couldn't hand back combined)
+// into one 1080x1920 reel. Keeps audio; falls back to video-only if a clip has no audio track.
+app.post('/api/stitch', upload.array('clips', 8), async (req, res) => {
+  const files = req.files || [];
+  if (files.length < 1) return res.status(400).json({ error: 'Add at least one clip to stitch.' });
+  const id = Math.random().toString(36).slice(2, 10);
+  const dir = path.join(RENDER_ROOT, id);
+  await fsp.mkdir(dir, { recursive: true });
+  const clipPaths = files.map(f => f.path); // multer preserves the upload (form) order
+  const finalPath = path.join(dir, 'final.mp4');
+  let audio = true;
+  try {
+    try {
+      await stitchWithAudio(clipPaths, finalPath);
+    } catch (e) {
+      // A clip with no audio stream (or incompatible audio) breaks the a=1 concat — retry video-only.
+      audio = false;
+      await stitch(clipPaths, finalPath);
+    }
+    res.json({ finalUrl: `/renders/${id}/final.mp4`, audio });
+  } catch (e) {
+    res.status(500).json({ error: 'Stitch failed: ' + e.message });
+  } finally {
+    for (const f of files) fsp.unlink(f.path).catch(() => {});
+  }
 });
 
 app.get('/health', (_req, res) => res.json({ ok: true, falEnabled: !!FAL_KEY }));

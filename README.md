@@ -30,6 +30,10 @@ served back from /renders/<job>/final.mp4
 - `server.js` — serves the UI, proxies Anthropic, and runs the fal.ai render pipeline. Keys come from `process.env` only.
 - `ANTHROPIC_API_KEY` (always) and `FAL_KEY` (only for auto-render) are set in **Railway → Variables**, encrypted at rest, never in git.
 
+### Stitch-your-own-clips tool
+- `POST /api/stitch` accepts uploaded video clips (multipart, field `clips`) and combines them, **in upload order**, into one 1080×1920 / 30fps MP4 served from `/renders`. It keeps and concatenates each clip's audio, falling back to video-only (`audio: false`) if a clip has no audio track.
+- This solves the case where Grok Imagine generates the individual clips fine but can't hand back the combined reel (a Grok-side asset/moderation limitation): download the clips, upload them here, get one downloadable reel. Clips are processed on this server — not sent to Grok or fal.
+
 ### Auto-render notes
 - Rendering is asynchronous: `POST /api/render` returns a `jobId`, the browser polls `GET /api/render/:id` for progress, and the finished MP4 is served from `/renders/...`.
 - Clip files live in the container's temp dir and are **ephemeral** — download the reel; it won't survive a redeploy/restart.

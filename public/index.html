@@ -225,6 +225,37 @@
     background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:7px 11px;
   }
   .rp-links a:hover{border-color:var(--butter-deep)}
+
+  .stitch-card{margin-top:28px}
+  .stitch-help{color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:14px;max-width:680px}
+  .stitch-add{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--cream);
+    border-radius:10px;padding:11px 16px;font-size:14px;font-weight:600;cursor:pointer;
+    font-family:'Inter',sans-serif;transition:border-color .15s;
+  }
+  .stitch-add:hover{border-color:var(--butter-deep)}
+  .clip-list{list-style:decimal;margin:16px 0 0 20px;padding:0;color:var(--cream)}
+  .clip-list li{
+    display:flex;align-items:center;gap:10px;padding:8px 0;font-size:14px;
+    border-bottom:1px solid var(--line);
+  }
+  .clip-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .clip-ops{display:flex;gap:6px;flex:none}
+  .clip-ops button{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--muted);
+    width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:14px;
+  }
+  .clip-ops button:hover:not(:disabled){color:var(--cream);border-color:#5a4634}
+  .clip-ops button:disabled{opacity:.35;cursor:not-allowed}
+  .stitch-go{
+    margin-top:18px;width:100%;background:var(--herb);color:#0f0b08;border:none;
+    border-radius:12px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;
+    font-family:'Inter',sans-serif;transition:filter .15s;
+  }
+  .stitch-go:hover:not(:disabled){filter:brightness(1.08)}
+  .stitch-go:disabled{background:#3f4a37;color:#8a9580;cursor:not-allowed}
+  .stitch-out{margin-top:16px}
+  .stitch-note{color:var(--muted);font-size:12px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -283,6 +314,16 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <div class="card stitch-card">
+    <label class="label">🔗 Already have clips? Stitch them into one reel</label>
+    <p class="stitch-help">If Grok generated your clips but couldn't hand back the combined video (a known Grok limitation with stitched outputs), download the individual clips, add them here <b>in order</b>, and I'll stitch them into one 1080×1920 MP4 — keeping the baked-in ASMR audio. Nothing is sent to Grok or fal; the stitch runs on this server.</p>
+    <input type="file" id="clipFiles" accept="video/*" multiple hidden>
+    <button class="stitch-add" id="clipAdd">+ Add clips</button>
+    <ol class="clip-list" id="clipList"></ol>
+    <button class="stitch-go" id="stitchGo" disabled>Stitch into one reel</button>
+    <div class="stitch-out" id="stitchOut"></div>
   </div>
 
   <div class="footnote" id="footnote"></div>
@@ -597,6 +638,55 @@ function pollRender(jobId,ui){
     tick();
   });
 }
+
+// manual stitch tool — combine user-supplied clips (e.g. from Grok) into one reel
+let uploadedClips=[];
+const clipFiles=document.getElementById('clipFiles');
+const clipAdd=document.getElementById('clipAdd');
+const clipList=document.getElementById('clipList');
+const stitchGo=document.getElementById('stitchGo');
+const stitchOut=document.getElementById('stitchOut');
+
+clipAdd.onclick=()=>clipFiles.click();
+clipFiles.onchange=e=>{ for(const f of e.target.files) uploadedClips.push(f); clipFiles.value=''; renderClips(); };
+
+function renderClips(){
+  clipList.innerHTML='';
+  uploadedClips.forEach((f,i)=>{
+    const li=document.createElement('li');
+    li.innerHTML=`<span class="clip-name">${esc(f.name)}</span>
+      <span class="clip-ops">
+        <button data-act="up" ${i===0?'disabled':''} title="Move up">↑</button>
+        <button data-act="down" ${i===uploadedClips.length-1?'disabled':''} title="Move down">↓</button>
+        <button data-act="rm" title="Remove">✕</button>
+      </span>`;
+    li.querySelector('[data-act="up"]').onclick=()=>{ if(i>0){[uploadedClips[i-1],uploadedClips[i]]=[uploadedClips[i],uploadedClips[i-1]];renderClips();} };
+    li.querySelector('[data-act="down"]').onclick=()=>{ if(i<uploadedClips.length-1){[uploadedClips[i+1],uploadedClips[i]]=[uploadedClips[i],uploadedClips[i+1]];renderClips();} };
+    li.querySelector('[data-act="rm"]').onclick=()=>{ uploadedClips.splice(i,1);renderClips(); };
+    clipList.appendChild(li);
+  });
+  stitchGo.disabled=uploadedClips.length<1;
+  stitchGo.textContent=uploadedClips.length?`Stitch ${uploadedClips.length} clip${uploadedClips.length>1?'s':''} into one reel`:'Stitch into one reel';
+}
+
+stitchGo.onclick=async()=>{
+  stitchGo.disabled=true; stitchGo.innerHTML='<span class="spin"></span>Stitching…'; stitchOut.innerHTML='';
+  try{
+    const fd=new FormData();
+    uploadedClips.forEach(f=>fd.append('clips',f));
+    const resp=await fetch('/api/stitch',{method:'POST',body:fd});
+    const data=await resp.json();
+    if(!resp.ok) throw new Error(data.error||('Stitch failed ('+resp.status+')'));
+    let h=`<video class="final" controls playsinline src="${data.finalUrl}"></video>
+      <div class="rp-links"><a href="${data.finalUrl}" download="reel.mp4">⬇ Download reel</a></div>`;
+    if(data.audio===false) h+=`<div class="stitch-note">Note: a clip had no usable audio track, so the reel was combined without sound.</div>`;
+    stitchOut.innerHTML=h;
+  }catch(e){
+    stitchOut.innerHTML=`<div class="err">${e.message}</div>`;
+  }finally{
+    renderClips();
+  }
+};
 </script>
 </body>
 </html>
